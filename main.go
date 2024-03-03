@@ -18,6 +18,13 @@ type RequestBody struct {
 	Keytext string `json:"keytext"`
 }
 
+type DataEntry struct {
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	Keytext   string `json:"keytext"`
+	Timestamp string `json:"timestamp"`
+}
+
 func main() {
 	// Initialize SQLite database
 	db, err := sql.Open("sqlite3", "./data.db")
@@ -40,6 +47,12 @@ func main() {
 
 	// Define the handler for the /api/put endpoint
 	http.HandleFunc("/api/put", func(w http.ResponseWriter, r *http.Request) {
+		// Check for request body size > 64 KB
+        if r.ContentLength > 64*1024 {
+            http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+            return
+        }
+
 		// Only allow POST requests
 		if r.Method != "POST" {
 			http.Error(w, "Method is not supported.", http.StatusMethodNotAllowed)
@@ -71,7 +84,7 @@ func main() {
 		if err != nil {
 			// fmt.Println("failed during execution")
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "Error occured.")
+			fmt.Fprintf(w, "Error: unknown error occured.")
 			// log.Fatal(err)
 		} else {
 			// Respond to the client
@@ -79,6 +92,57 @@ func main() {
 			fmt.Fprintf(w, "Data stored successfully: %s, %s, %s", body.ID, body.Email, body.Keytext)
 		}
 
+	})
+
+	http.HandleFunc("/api/get", func(w http.ResponseWriter, r *http.Request) {
+		var id string
+		// For POST requests, check body size
+        if r.Method == "POST" {
+            if r.ContentLength > 64*1024 {
+                http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+                return
+            }
+        }
+
+		if r.Method == "GET" {
+			id = r.URL.Query().Get("id")
+		} else if r.Method == "POST" {
+			var body struct {
+				ID string `json:"id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			id = body.ID
+		} else {
+			http.Error(w, "Method is not supported.", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var entry DataEntry
+		query := `SELECT id, email, keytext, timestamp FROM data WHERE id = ?`
+		err := db.QueryRow(query, id).Scan(&entry.ID, &entry.Email, &entry.Keytext, &entry.Timestamp)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.NotFound(w, r)
+				if id == "" {
+					// No key ID provided.
+					fmt.Fprintf(w, "Error: Empty query, no key ID was provided.")
+				} else {
+					fmt.Fprintf(w, "Error: key %s is not found", id)
+				}
+			} else {
+				log.Fatal(err)
+			}
+			return
+		}
+
+		// Convert the entry to JSON and return it
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(entry); err != nil {
+			log.Fatal(err)
+		}
 	})
 
 	// Start the server on port 8080

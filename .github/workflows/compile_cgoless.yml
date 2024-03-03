@@ -1,4 +1,4 @@
-name: Compile and Upload Artifacts
+name: Compile and Upload Artifacts with CGO_DISABLED
 
 # This workflow is triggered on pushes to the repository.
 on: [push]
@@ -17,18 +17,18 @@ jobs:
       with:
         go-version: '1.22'
 
-    - name: Compile with compile.sh
+    - name: Compile with compile_cgoless.sh
       run: |
-        chmod +x ./compile.sh
-        ./compile.sh
+        chmod +x ./compile_cgoless.sh
+        ./compile_cgoless.sh
     
     - name: Compress all binaries
       run: |
-        tar cv ./bin | zstd -T0 -16 > bin.tar.zst
+        tar cv ./bin_cgoless | zstd -T0 -16 > bin_cgoless.tar.zst
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
         name: compiled-software
         path: |
-          ./bin.tar.zst
+          ./bin_cgoless.tar.zst
