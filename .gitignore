@@ -19,3 +19,9 @@
 
 # Go workspace file
 go.work
+
+# Test database
+data.db
+
+# Pre-compiled binaries
+CryptoKeyServer*
