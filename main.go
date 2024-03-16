@@ -45,14 +45,30 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Define the handler for the /api/put endpoint
-	http.HandleFunc("/api/put", func(w http.ResponseWriter, r *http.Request) {
-		// Check for request body size > 64 KB
-        if r.ContentLength > 64*1024 {
-            http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
-            return
-        }
+	http.HandleFunc("/", HttpIndex)
 
+	http.HandleFunc("/api/put", HttpPutKey(db))
+
+	http.HandleFunc("/api/get", HttpGetKey(db))
+
+	// Start the server on port 8080
+	fmt.Println("Server starting on port 8080...")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+}
+
+func HttpIndex(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "templates/index.html")
+}
+
+func HttpPutKey(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Check for request body size > 64 KB
+		if r.ContentLength > 64*1024 {
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		// Only allow POST requests
 		if r.Method != "POST" {
 			http.Error(w, "Method is not supported.", http.StatusMethodNotAllowed)
@@ -91,18 +107,19 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprintf(w, "Data stored successfully: %s, %s, %s", body.ID, body.Email, body.Keytext)
 		}
+	}
+}
 
-	})
-
-	http.HandleFunc("/api/get", func(w http.ResponseWriter, r *http.Request) {
+func HttpGetKey(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var id string
 		// For POST requests, check body size
-        if r.Method == "POST" {
-            if r.ContentLength > 64*1024 {
-                http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
-                return
-            }
-        }
+		if r.Method == "POST" {
+			if r.ContentLength > 64*1024 {
+				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+		}
 
 		if r.Method == "GET" {
 			id = r.URL.Query().Get("id")
@@ -143,11 +160,5 @@ func main() {
 		if err := json.NewEncoder(w).Encode(entry); err != nil {
 			log.Fatal(err)
 		}
-	})
-
-	// Start the server on port 8080
-	fmt.Println("Server starting on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
 	}
 }
